@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Tamp.Core" />
+    <PackageReference Include="Tamp.NetCli.V10" />
+    <PackageReference Include="Tamp.SonarScanner.V10" />
+  </ItemGroup>
+
+</Project>

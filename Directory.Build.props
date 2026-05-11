@@ -1,0 +1,39 @@
+<Project>
+
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <DebugType>embedded</DebugType>
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+    <NeutralLanguage>en-US</NeutralLanguage>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Tamp package metadata defaults">
+    <Authors>Scott Singleton</Authors>
+    <Company>Tamp Project</Company>
+    <Copyright>Copyright (c) 2026 Scott Singleton</Copyright>
+    <PackageProjectUrl>https://github.com/tamp-build/tamp-http</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/tamp-build/tamp-http</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageTags>tamp;build;automation;ci;dotnet;http;rest;api</PackageTags>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Tamp.Core dependency mode — see MAINTAINERS.md">
+    <TampCoreMode Condition="'$(TampCoreMode)' == ''">project</TampCoreMode>
+    <TampCorePath Condition="'$(TampCorePath)' == ''">$(MSBuildThisFileDirectory)..\tamp\src\Tamp.Core\Tamp.Core.csproj</TampCorePath>
+  </PropertyGroup>
+
+
+  <PropertyGroup Label="Tamp central version (TAM-81 — single source of truth for all packable projects in this repo). Bump this before tagging a release; csprojs do NOT carry their own Version element.">
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+
+</Project>

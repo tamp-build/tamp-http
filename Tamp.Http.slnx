@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="README.md" /><File Path="LICENSE" /><File Path="MAINTAINERS.md" />
+    <File Path="Directory.Build.props" /><File Path="Directory.Packages.props" />
+    <File Path="global.json" /><File Path=".gitignore" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Tamp.Http/Tamp.Http.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Tamp.Http.Tests/Tamp.Http.Tests.csproj" />
+  </Folder>
+</Solution>

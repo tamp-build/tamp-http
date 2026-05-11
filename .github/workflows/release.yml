@@ -1,0 +1,149 @@
+name: Release
+
+# Dogfood release: this workflow builds AND publishes Tamp.Http
+# *using Tamp itself*. The dotnet-tamp global tool is installed and runs
+# the Build.cs targets — same pattern Tamp's own self-hosted CI uses.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'If true, pack but do NOT push to nuget.org'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: '1'
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: '1'
+  # Use the published Tamp.Core via PackageReference (not sibling-clone
+  # ProjectReference) — this is what makes the dogfood story load-bearing.
+  TampCoreMode: package
+
+jobs:
+  publish:
+    name: pack + push to nuget.org via Tamp
+    runs-on: ubuntu-latest
+    environment: release
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # source link wants the full history
+
+      # Refuse to release a tag whose commit's CI hasn't passed (TAM-84 + branch protection).
+      # Skipped on workflow_dispatch — that path is the manual override
+      # for land-grabs / out-of-band publishes.
+      - name: Wait for CI to pass on this commit
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -e
+          SHA="${{ github.sha }}"
+          echo "Waiting for CI workflow run on commit $SHA"
+          for i in $(seq 1 60); do
+            result=$(gh run list --workflow CI --commit "$SHA" --json status,conclusion --jq '.[0] // empty')
+            if [ -z "$result" ]; then
+              echo "  (no CI run for this commit yet — attempt $i/60, sleeping 10s)"
+              sleep 10
+              continue
+            fi
+            status=$(echo "$result" | jq -r '.status')
+            conclusion=$(echo "$result" | jq -r '.conclusion // ""')
+            echo "  CI status=$status conclusion=$conclusion (attempt $i/60)"
+            if [ "$status" != "completed" ]; then
+              echo "  (CI still running, sleeping 10s)"
+              sleep 10
+              continue
+            fi
+            if [ "$conclusion" = "success" ]; then
+              echo "✓ CI passed on $SHA — proceeding with release"
+              exit 0
+            fi
+            echo "::error::CI conclusion is '$conclusion' on commit $SHA. Refusing to release."
+            exit 1
+          done
+          echo "::error::Timed out waiting for CI to complete on commit $SHA after 10 minutes."
+          exit 1
+
+      - name: Install supported .NET SDKs
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      # Tag is the source of truth for shipped versions. Strips the
+      # leading "v" (so v0.1.0 → 0.1.0). PACKAGE_VERSION flows through
+      # to the Build.cs Pack target via the [Parameter(EnvironmentVariable)]
+      # binding on the Version property.
+      - name: Resolve version from tag
+        if: github.event_name == 'push'
+        run: echo "PACKAGE_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      # The dogfood: install Tamp's CLI tool. The "dotnet-tamp" package
+      # exposes `dotnet tamp <target>` — we pin to 1.0.0 explicitly so
+      # the build is reproducible.
+      - name: Install Tamp (the framework being dogfooded)
+        run: dotnet tool install --global dotnet-tamp --version 1.0.0
+
+      # Run the full CI pipeline (Info → Clean → Restore → Compile →
+      # Test → Pack) through Tamp's own target graph. The Build.cs in
+      # ./build is auto-discovered by Tamp.Cli walking up from CWD.
+      - name: tamp Ci
+        run: dotnet tamp Ci
+
+      - name: List packages
+        run: ls -la ./artifacts/
+
+      # Push runs on tag push always, and on workflow_dispatch only when
+      # dry_run is explicitly false. The Push target depends on Pack so
+      # this step re-runs Compile / Test / Pack — a few extra seconds in
+      # exchange for keeping the target graph dependency-honest.
+      #
+      # The diagnostic step is intentionally kept — surfaces missing /
+      # rotated secrets fast (with char count, no value leak) instead of
+      # letting an empty key fall through into the Push step.
+      - name: Diagnostics — secret presence check
+        if: ${{ github.event_name == 'push' || inputs.dry_run == false }}
+        env:
+          NUGET_API_KEY: ${{ secrets.tamp_nuget_api_key }}
+        run: |
+          if [ -n "$NUGET_API_KEY" ]; then
+            echo "NUGET_API_KEY is set (${#NUGET_API_KEY} chars)."
+          else
+            echo "::error::NUGET_API_KEY is empty. Check the tamp_nuget_api_key org secret."
+            exit 1
+          fi
+
+      - name: tamp Push
+        if: ${{ github.event_name == 'push' || inputs.dry_run == false }}
+        env:
+          NUGET_API_KEY: ${{ secrets.tamp_nuget_api_key }}
+        run: dotnet tamp Push
+
+      - name: Dry-run summary
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == true }}
+        run: |
+          echo "DRY RUN — would have pushed:"
+          ls -la ./artifacts/*.nupkg
+          echo ""
+          echo "Re-run with dry_run=false to actually publish."
+
+      - name: Upload packages as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nupkgs
+          path: ./artifacts/*.nupkg
+          if-no-files-found: error

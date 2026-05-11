@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+    <RootNamespace>Tamp.Http</RootNamespace>
+    <AssemblyName>Tamp.Http</AssemblyName>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Package">
+    <PackageId>Tamp.Http</PackageId>
+    <Description>Foundation library for HTTP-API wrappers in Tamp. TampApiClient base class handles HttpClient construction, Basic/Bearer/CustomHeader auth with Secret-redacted credentials, JSON serialization, and typed error mapping. Used by Tamp.AdoRest.V7 (TAM-97) and upcoming wrappers for GitHub issues, YouTrack, Jira, and similar HTTP APIs. No V-pin — library shape is intended to be stable.</Description>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(TampCorePath)" Condition="'$(TampCoreMode)' == 'project'" />
+    <PackageReference Include="Tamp.Core" Condition="'$(TampCoreMode)' == 'package'" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="All" />
+  </ItemGroup>
+
+</Project>
