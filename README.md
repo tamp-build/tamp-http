@@ -77,6 +77,50 @@ Auth credential applies to every request automatically. The PAT
 joins the redaction table at construction time — any log line that
 echoes the value gets scrubbed.
 
+## Post-deploy health probe (0.1.1+)
+
+`HttpProbe.WaitForHealthy` is a static one-liner for SmokeQa-style targets that
+need to wait for a deployed surface to start answering. No subclass needed.
+
+```csharp
+Target SmokeQa => _ => _
+    .DependsOn(nameof(DeployQa))
+    .Executes(async () =>
+        await HttpProbe.WaitForHealthy(
+            url: "https://qa.holdfast.lab/health/live",
+            timeout: TimeSpan.FromMinutes(2)));
+```
+
+Defaults: 2-second polling, `IsSuccessStatusCode` as the predicate. Treats
+`HttpRequestException` (connection refused, DNS, etc.) and per-request
+`HttpClient` timeouts as transient — retries through them until the wall-clock
+budget elapses. Throws `TimeoutException` on budget exhaustion with the last
+observed status, the attempt count, and the last transport error in the message.
+
+Override any default:
+
+```csharp
+await HttpProbe.WaitForHealthy(
+    url: "https://qa.holdfast.lab/api/health",
+    timeout: TimeSpan.FromMinutes(5),
+    interval: TimeSpan.FromSeconds(5),                            // slower poll
+    headers: new Dictionary<string, string>                       // auth-required endpoint
+    {
+        ["X-Probe-Key"] = ProbeKey.Reveal()                       // Secret + Reveal at call site
+    },
+    isHealthy: async r =>                                         // body-content check
+    {
+        if (!r.IsSuccessStatusCode) return false;
+        var body = await r.Content.ReadAsStringAsync();
+        return !body.Contains("\"status\":\"degraded\"");
+    },
+    cancellationToken: ct);
+```
+
+`HttpClient` override is for self-signed certs, corporate proxy handlers, or
+shared client reuse — pass a pre-configured client and `WaitForHealthy` won't
+dispose it.
+
 ## API credentials
 
 ```csharp
