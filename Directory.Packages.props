@@ -18,8 +18,8 @@
   </ItemGroup>
 
   <ItemGroup Label="Tamp packages">
-    <PackageVersion Include="Tamp.Core" Version="1.2.0" />
-    <PackageVersion Include="Tamp.NetCli.V10" Version="1.2.0" />
+    <PackageVersion Include="Tamp.Core" Version="1.4.0" />
+    <PackageVersion Include="Tamp.NetCli.V10" Version="1.4.0" />
     <PackageVersion Include="Tamp.SonarScanner.V10" Version="0.1.0" />
   </ItemGroup>
 
