@@ -10,6 +10,8 @@
   <ItemGroup>
     <PackageReference Include="Tamp.Core" />
     <PackageReference Include="Tamp.NetCli.V10" />
+    <PackageReference Include="Tamp.Components" />
+    <PackageReference Include="Tamp.Components.NetCli.V10" />
     <PackageReference Include="Tamp.SonarScanner.V10" />
   </ItemGroup>
 
