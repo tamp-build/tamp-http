@@ -137,10 +137,37 @@ ApiCredential.None                                       // unauthenticated endp
 |---|---|---|
 | `ApiClientException` (`ApiException` subclass) | 4xx response | Don't retry without changing the request. Inspect `.ResponseBody` for diagnostics. |
 | `ApiServerException` | 5xx response | Generally safe to retry with backoff. `.IsTransient == true`. |
-| (other exceptions) | network / DNS / TLS / cancellation | Standard HttpClient exception types — `HttpRequestException`, `TaskCanceledException`, etc. |
+| `ApiTimeoutException` (`TaskCanceledException` subclass, inner `TimeoutException`) | No response before the time limit (0.2.0+) | Usually a hang. `.Elapsed`, `.Timeout`, `.IsHttpClientTimeout`. |
+| `ApiTransportException` (`HttpRequestException` subclass) | DNS / connect / TLS / reset before any response (0.2.0+) | `.Elapsed`. The message names the innermost cause, e.g. `SocketError.ConnectionRefused`. |
+| `TaskCanceledException` | Your own `CancellationToken` was cancelled | Carries your token. The message gives the elapsed time. |
+
+The base types are unchanged, so existing `catch (HttpRequestException)` and
+`catch (TaskCanceledException)` retry logic keeps matching. Every failure message
+gives the **elapsed time**, the **endpoint** and the **innermost cause**:
+
+```text
+POST https://sink/ingest/coverage failed after 2.1 s before any response arrived: … Innermost cause: SocketException: … (SocketError.ConnectionRefused).
+POST https://sink/ingest/coverage timed out after 300.0 s with no response (RequestTimeout 300.0 s). No underlying cause reported (the request was still pending: a hang, not an error).
+```
 
 Response body for error responses is captured into `.ResponseBody`,
-truncated to `MaxCapturedErrorBodyBytes` (default 16 KiB).
+truncated to `MaxCapturedErrorBodyBytes` (default 16 KiB). HTTP-error messages
+end with `(after N.N s)`, also available as `.Elapsed`.
+
+## Timeouts
+
+`RequestTimeout` (default `TampApiClient.DefaultRequestTimeout`, 100 s) is enforced
+by the client on every request, `SendRawAsync` included. Wrappers whose calls run
+long, such as replace-on-ingest uploads, raise it in their constructor. Callers can
+also set it per instance (`Timeout.InfiniteTimeSpan` for no limit).
+
+A client that builds its own `HttpClient` disables that client's built-in 100 s
+`Timeout`, so `RequestTimeout` is the only limit. **An injected `HttpClient` keeps
+its own `Timeout`**, because a shared client is never modified. The shorter limit
+wins, so a plain `new HttpClient()` still stops every request at 100 s. When that
+happens the exception has `IsHttpClientTimeout == true` and the message tells you
+to set `HttpClient.Timeout = Timeout.InfiniteTimeSpan` or stop injecting the
+client.
 
 ## JSON shape
 
