@@ -7,6 +7,27 @@ versions follow [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-10-31
+
+TAM-294, from strata-home's nightly post-mortem. A dead network hang surfaced as
+*"the configured HttpClient.Timeout of 100 seconds elapsing"*. That message gives the
+limit, not the time spent, and it read as "payload too big". The real
+`SocketException` only appeared after walking the inner-exception chain.
+
+### Added
+
+- **`TampApiClient.RequestTimeout`**: a per-request limit enforced by the client on every call, including `SendRawAsync`. Defaults to `DefaultRequestTimeout` (100 s). Settable per instance or by a subclass, and accepts `Timeout.InfiniteTimeSpan`. Rejects non-positive values and values beyond `CancelAfter`'s range.
+- **`ApiTimeoutException`** (`TaskCanceledException` subclass, inner `TimeoutException`, matching `HttpClient`'s own shape): `RequestMethod`, `RequestUri`, `Elapsed`, `Timeout`, `IsHttpClientTimeout`.
+- **`ApiTransportException`** (`HttpRequestException` subclass; original kept as inner, `HttpRequestError` and `StatusCode` preserved): `RequestMethod`, `RequestUri`, `Elapsed`.
+- **`ApiException.Elapsed`**: time to the error response.
+
+### Changed
+
+- Every failure message now gives the **elapsed time**, the **endpoint** and the **innermost cause**. The innermost cause is the deepest exception that isn't a cancellation or timeout wrapper; for a `SocketException` it includes the `SocketError` code. When nothing below the wrappers exists, the message says the request was still pending, i.e. a hang rather than an error. Caller cancellation still throws `TaskCanceledException` on the caller's own token, now with the elapsed time.
+- A timeout from an injected `HttpClient`'s own `Timeout` is named as such, with the fix: `HttpClient.Timeout = Timeout.InfiniteTimeSpan`, or don't inject the client. Injected clients are never modified.
+- A client-owned `HttpClient` now has `Timeout = InfiniteTimeSpan`, so `RequestTimeout` governs. The effective default is unchanged at 100 s.
+- HTTP-error messages end with `(after N.N s)`.
+
 ## [0.1.2] — 2026-09-27
 
 ### Added

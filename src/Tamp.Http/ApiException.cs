@@ -15,6 +15,9 @@ public class ApiException : Exception
     public string? RequestMethod { get; }
     public string? ResponseBody { get; }
 
+    /// <summary>Wall-clock time from sending the request to receiving the error response, when known.</summary>
+    public TimeSpan? Elapsed { get; init; }
+
     public ApiException(
         HttpStatusCode statusCode,
         string? requestUri,

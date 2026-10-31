@@ -11,7 +11,13 @@ internal sealed class TestApiClient : TampApiClient
     public TestApiClient(Uri baseUri, ApiCredential credential, HttpClient http)
         : base(baseUri, credential, http: http) { }
 
+    /// <summary>Owned-HttpClient construction (no injection), so the client sets up its own HttpClient.</summary>
+    public TestApiClient(Uri baseUri, ApiCredential credential)
+        : base(baseUri, credential) { }
+
     public Task<T> Get<T>(string uri) => GetAsync<T>(uri);
+    public Task<T> GetWithToken<T>(string uri, CancellationToken ct) => GetAsync<T>(uri, ct);
+    public HttpClient HttpForTest() => Http;
     public Task<T> Post<T>(string uri, object body) => PostJsonAsync<T>(uri, body);
     public Task Post(string uri, object body) => PostJsonAsync(uri, body);
     public Task<T> Put<T>(string uri, object body) => PutJsonAsync<T>(uri, body);
