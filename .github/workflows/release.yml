@@ -31,6 +31,9 @@ jobs:
     name: pack + push to nuget.org via Tamp
     runs-on: ubuntu-latest
     environment: release
+    permissions:
+      contents: read
+      id-token: write   # OIDC token for nuget.org trusted publishing (NuGet/login). This job only.
 
     steps:
       - name: Checkout
@@ -79,9 +82,8 @@ jobs:
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
-            8.0.x
-            9.0.x
             10.0.x
+            11.0.x
 
       # Tag is the source of truth for shipped versions. Strips the
       # leading "v" (so v0.1.0 → 0.1.0). PACKAGE_VERSION flows through
@@ -111,25 +113,25 @@ jobs:
       # this step re-runs Compile / Test / Pack — a few extra seconds in
       # exchange for keeping the target graph dependency-honest.
       #
-      # The diagnostic step is intentionally kept — surfaces missing /
-      # rotated secrets fast (with char count, no value leak) instead of
-      # letting an empty key fall through into the Push step.
-      - name: Diagnostics — secret presence check
+      # nuget.org trusted publishing (OIDC). All pre-2026-08-17 API keys expired on
+      # 2026-11-01, so the tamp_nuget_api_key org secret is dead and replacements cap at 30
+      # days. NuGet/login exchanges this job's short-lived id-token for a temporary key, so
+      # there is no long-lived secret to rotate and nothing to leak.
+      #
+      # Pinned to a commit hash rather than the mutable v1 tag: this is the step that receives
+      # the id-token, and a moved tag would hand a third party the credential that mints a
+      # nuget.org key (Sonar githubactions:S7637).
+      - name: NuGet login (OIDC -> temp API key)
         if: ${{ github.event_name == 'push' || inputs.dry_run == false }}
-        env:
-          NUGET_API_KEY: ${{ secrets.tamp_nuget_api_key }}
-        run: |
-          if [ -n "$NUGET_API_KEY" ]; then
-            echo "NUGET_API_KEY is set (${#NUGET_API_KEY} chars)."
-          else
-            echo "::error::NUGET_API_KEY is empty. Check the tamp_nuget_api_key org secret."
-            exit 1
-          fi
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
+        id: nuget-login
+        with:
+          user: BrewingCoder
 
       - name: tamp Push
         if: ${{ github.event_name == 'push' || inputs.dry_run == false }}
         env:
-          NUGET_API_KEY: ${{ secrets.tamp_nuget_api_key }}
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
         run: dotnet tamp Push
 
       - name: Dry-run summary
