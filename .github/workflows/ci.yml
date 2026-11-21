@@ -79,7 +79,17 @@ jobs:
       DOTNET_NOLOGO: '1'
       DOTNET_CLI_TELEMETRY_OPTOUT: '1'
       DOTNET_SKIP_FIRST_TIME_EXPERIENCE: '1'
+      # Every Tamp*Mode, not just Core: some repos carry cross-repo
+      # ProjectReferences (tauri -> cargo, telegram -> http) that are
+      # sibling clones absent on a runner, so Compile fails before analysis
+      # without them. A mode for an unused dependency is inert.
       TampCoreMode: package
+      TampHttpMode: package
+      TampNetCliMode: package
+      TampHeftMode: package
+      TampCargoMode: package
+      TampAzureCliMode: package
+      TampAdoRestMode: package
 
     steps:
       - name: Checkout

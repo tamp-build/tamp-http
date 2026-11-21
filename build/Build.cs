@@ -24,10 +24,21 @@ class Build : TampBuild, IDotNetTest, IDotNetPack
     readonly Secret SonarToken = null!;
 
     [Parameter("Sonar host URL", EnvironmentVariable = "SONAR_HOST_URL")]
-    readonly string SonarHostUrl = "https://sonar.brewingcoder.com";
+    readonly string SonarHostUrl = "https://sonarcloud.io";
 
     [Parameter("Sonar project key")]
     readonly string SonarProjectKey = "tamp-build_tamp-http";
+
+    // SonarCloud requires an organization; the self-hosted instance this repo
+    // used to point at does not have the concept. Omitting it makes the scanner
+    // fail pre-processing with "Authentication with the server has failed", which
+    // reads like a bad token and is not one.
+    [Parameter("SonarCloud organization")]
+    readonly string SonarOrganization = "tamp-build";
+
+    [Parameter("Pull-request number", EnvironmentVariable = "SONAR_PR_KEY")] readonly string SonarPrKey = "";
+    [Parameter("Pull-request head branch", EnvironmentVariable = "SONAR_PR_BRANCH")] readonly string SonarPrBranch = "";
+    [Parameter("Pull-request base branch", EnvironmentVariable = "SONAR_PR_BASE")] readonly string SonarPrBase = "";
 
     AbsolutePath Artifacts => RootDirectory / "artifacts";
 
@@ -65,12 +76,22 @@ class Build : TampBuild, IDotNetTest, IDotNetPack
         .Executes(() => Tamp.SonarScanner.V10.SonarScanner.Begin(SonarTool, s =>
         {
             s.SetProjectKey(SonarProjectKey);
+            s.SetOrganization(SonarOrganization);
             s.SetHostUrl(SonarHostUrl);
             s.SetToken(SonarToken);
             s.SetProperty("sonar.cs.vstest.reportsPaths", $"{(Artifacts / "test-results").Value}/**/*.trx");
             s.SetProperty("sonar.cs.opencover.reportsPaths", $"{(Artifacts / "test-results").Value}/**/coverage.opencover.xml");
             s.SetProperty("sonar.exclusions", "**/bin/**,**/obj/**,artifacts/**,build/**,docs/**,samples/**");
             s.SetProperty("sonar.coverage.exclusions", "tests/**,build/**");
+
+            // On a PR run, analyse as a pull request so SonarCloud decorates it with
+            // the new-code gate. Empty on a nightly main-branch baseline.
+            if (!string.IsNullOrEmpty(SonarPrKey))
+            {
+                s.SetProperty("sonar.pullrequest.key", SonarPrKey);
+                s.SetProperty("sonar.pullrequest.branch", SonarPrBranch);
+                s.SetProperty("sonar.pullrequest.base", SonarPrBase);
+            }
         }));
 
     Target SonarEnd => _ => _

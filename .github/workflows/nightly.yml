@@ -22,7 +22,17 @@ jobs:
       # Mirror CI's dependency mode. These repos default Tamp*Mode to `project`
       # locally -- sibling-clone ProjectReferences that do not exist on a runner --
       # so without this the build fails before analysis ever starts.
+      # Every Tamp*Mode, not just Core: some repos carry cross-repo
+      # ProjectReferences (tauri -> cargo, telegram -> http) that are
+      # sibling clones absent on a runner, so Compile fails before analysis
+      # without them. A mode for an unused dependency is inert.
       TampCoreMode: package
+      TampHttpMode: package
+      TampNetCliMode: package
+      TampHeftMode: package
+      TampCargoMode: package
+      TampAzureCliMode: package
+      TampAdoRestMode: package
 
     steps:
       - name: Checkout
