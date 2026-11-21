@@ -1,0 +1,76 @@
+name: Nightly
+
+# Nightly lane: the full SonarQube Cloud scan (C# across all TFMs, with OpenCover coverage).
+# Fast build + unit tests live in ci.yml, which also runs the per-PR new-code gate.
+on:
+  schedule:
+    # 07:00 UTC daily.
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sonar:
+    name: SonarCloud scan
+    runs-on: ubuntu-latest
+    env:
+      DOTNET_NOLOGO: '1'
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: '1'
+      # Mirror CI's dependency mode. These repos default Tamp*Mode to `project`
+      # locally -- sibling-clone ProjectReferences that do not exist on a runner --
+      # so without this the build fails before analysis ever starts.
+      # Every Tamp*Mode, not just Core: some repos carry cross-repo
+      # ProjectReferences (tauri -> cargo, telegram -> http) that are
+      # sibling clones absent on a runner, so Compile fails before analysis
+      # without them. A mode for an unused dependency is inert.
+      TampCoreMode: package
+      TampHttpMode: package
+      TampNetCliMode: package
+      TampHeftMode: package
+      TampCargoMode: package
+      TampAzureCliMode: package
+      TampAdoRestMode: package
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Full history so SonarCloud can attribute new code and blame.
+          fetch-depth: 0
+
+      - name: Set up JDK 21
+        # The SonarScanner for .NET runs on the JVM (SonarQube Cloud recommends 21).
+        uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up .NET SDKs
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          dotnet-version: |
+            10.0.x
+            11.0.x
+
+      - name: NuGet cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Install SonarScanner for .NET
+        run: |
+          dotnet tool install --global dotnet-sonarscanner --version 10.4.1
+          echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+
+      # Dogfood: tamp drives the scan. SonarBegin -> Compile -> Test (all TFMs,
+      # OpenCover coverage via build/coverlet.runsettings) -> SonarEnd.
+      - name: SonarCloud scan
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: dotnet run --project build -- Sonar
